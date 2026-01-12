@@ -115,6 +115,22 @@ const RadiographySystemsPage = () => {
     return [];
   };
 
+  // Parse benefits from JSON string or array (similar to features)
+  const parseBenefits = (benefits: any): string[] => {
+    if (!benefits) return [];
+    if (Array.isArray(benefits)) return benefits;
+    if (typeof benefits === 'string') {
+      try {
+        const parsed = JSON.parse(benefits);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        // If not JSON, treat as newline-separated string
+        return benefits.split('\n').filter((b: string) => b.trim());
+      }
+    }
+    return [];
+  };
+
   return (
     <div className="min-h-screen bg-white">
       <Header />
@@ -132,6 +148,7 @@ const RadiographySystemsPage = () => {
       {products.length > 0 ? (
         products.map((product, index) => {
           const features = parseFeatures(product.features);
+          const benefits = parseBenefits(product.benefits);
           const imagePosition = product.imagePosition || 'left';
           const backgroundColor = product.backgroundColor || 'from-gray-50 to-white';
           const sectionId = product.sectionId || `product-${index}`;
@@ -213,11 +230,20 @@ const RadiographySystemsPage = () => {
                           </ul>
                         </li>
                       )}
-                      {product.benefits && (
+                      {benefits.length > 0 ? (
+                        <li>
+                          <strong>Benefits:</strong>
+                          <ul className="ml-6 mt-2 space-y-2 list-disc">
+                            {benefits.map((benefit: string, idx: number) => (
+                              <li key={idx}>{benefit}</li>
+                            ))}
+                          </ul>
+                        </li>
+                      ) : product.benefits ? (
                         <li>
                           <strong>Benefits:</strong> {product.benefits}
                         </li>
-                      )}
+                      ) : null}
                     </ul>
                   </div>
                 </div>

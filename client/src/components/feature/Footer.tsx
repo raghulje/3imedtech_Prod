@@ -87,6 +87,20 @@ const Footer = ({ footerData: propFooterData }: FooterProps = {}) => {
         },
       ];
 
+  // Format phone number with proper spacing
+  const formatPhoneNumber = (phone: string): { countryCode: string; number: string } | null => {
+    if (!phone) return null;
+    // Extract +91 and the rest of the number
+    const match = phone.match(/^(\+91)\s*(.+)$/);
+    if (match) {
+      return {
+        countryCode: match[1],
+        number: match[2].trim()
+      };
+    }
+    return { countryCode: '', number: phone.trim() };
+  };
+
   return (
     <footer className="bg-white border-t border-gray-200">
       <div className="max-w-[1880px] mx-auto px-6 lg:px-12 py-12">
@@ -127,19 +141,35 @@ const Footer = ({ footerData: propFooterData }: FooterProps = {}) => {
                 </div>
               )}
               <div className="space-y-1 pt-1">
-                {footerData?.phone && (
-                  <a 
-                    href={`tel:${footerData.phone.replace(/\s/g, '')}`} 
-                    className="block hover:text-[#E6662F] transition-colors"
-                    style={{
-                      color: '#0E2B5C',
-                      fontFamily: 'Rubik, sans-serif',
-                      fontSize: '15px'
-                    }}
-                  >
-                    {footerData.phone}
-                  </a>
-                )}
+                {footerData?.phone && (() => {
+                  const formatted = formatPhoneNumber(footerData.phone);
+                  return formatted ? (
+                    <a 
+                      href={`tel:${footerData.phone.replace(/\s/g, '')}`} 
+                      className="block hover:text-[#E6662F] transition-colors"
+                      style={{
+                        color: '#0E2B5C',
+                        fontFamily: 'Rubik, sans-serif',
+                        fontSize: '15px'
+                      }}
+                    >
+                      <span>{formatted.countryCode}</span>
+                      <span style={{ marginLeft: '8px', letterSpacing: '0.5px' }}>{formatted.number}</span>
+                    </a>
+                  ) : (
+                    <a 
+                      href={`tel:${footerData.phone.replace(/\s/g, '')}`} 
+                      className="block hover:text-[#E6662F] transition-colors"
+                      style={{
+                        color: '#0E2B5C',
+                        fontFamily: 'Rubik, sans-serif',
+                        fontSize: '15px'
+                      }}
+                    >
+                      {footerData.phone}
+                    </a>
+                  );
+                })()}
                 {footerData?.email && (
                   <a 
                     href={`mailto:${footerData.email}`} 
