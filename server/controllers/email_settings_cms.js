@@ -21,17 +21,26 @@ exports.emailSettings = {
     const payload = req.body || {};
     const userId = req.userData?.id || null;
     
-    console.log('📧 Email settings update request:', {
+    console.log('📧 ========== Email Settings Update Request ==========');
+    console.log('📧 Request method:', req.method);
+    console.log('📧 Request path:', req.path);
+    console.log('📧 User ID:', userId);
+    console.log('📧 Payload received:', {
       hasPassword: !!payload.smtpPassword,
       passwordLength: payload.smtpPassword?.length,
       passwordIsMasked: payload.smtpPassword === '***',
-      ...Object.keys(payload).reduce((acc, key) => {
-        if (key !== 'smtpPassword') acc[key] = payload[key];
-        return acc;
-      }, {})
+      smtpHost: payload.smtpHost,
+      smtpPort: payload.smtpPort,
+      smtpUser: payload.smtpUser,
+      fromEmail: payload.fromEmail,
+      toEmail: payload.toEmail,
+      fromName: payload.fromName,
+      isActive: payload.isActive
     });
     
     const existing = await EmailSettings.findOne({ where: { isActive: true } });
+    console.log('📧 Existing settings found:', existing ? 'Yes (ID: ' + existing.id + ')' : 'No');
+    
     if (existing) {
       // If password is masked (***) or empty, don't update it
       if (payload.smtpPassword === '***' || payload.smtpPassword === '' || !payload.smtpPassword) {
@@ -41,8 +50,26 @@ exports.emailSettings = {
         console.log('🔑 Updating password');
       }
       
+      console.log('📧 Updating database with payload:', {
+        ...Object.keys(payload).reduce((acc, key) => {
+          if (key !== 'smtpPassword') acc[key] = payload[key];
+          return acc;
+        }, {}),
+        hasPassword: !!payload.smtpPassword
+      });
+      
       await existing.update(payload);
       const updated = await EmailSettings.findByPk(existing.id);
+      
+      console.log('📧 Database update completed. Updated values:', {
+        smtpHost: updated.smtpHost,
+        smtpPort: updated.smtpPort,
+        smtpUser: updated.smtpUser,
+        fromEmail: updated.fromEmail,
+        toEmail: updated.toEmail,
+        fromName: updated.fromName,
+        isActive: updated.isActive
+      });
       
       // Refresh email service with new settings
       try {
@@ -56,6 +83,7 @@ exports.emailSettings = {
       // Don't send password in response
       const safeSettings = updated.toJSON();
       safeSettings.smtpPassword = safeSettings.smtpPassword ? '***' : null;
+      console.log('📧 ========== Email Settings Update SUCCESS ==========');
       return status.responseStatus(res, 200, "Updated", safeSettings);
     }
     

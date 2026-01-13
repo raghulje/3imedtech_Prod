@@ -1570,6 +1570,7 @@ export default function AdminDashboard() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     console.log('🔵 handleSubmit called', { 
       editingItem, 
       activeTab, 
@@ -1578,6 +1579,71 @@ export default function AdminDashboard() {
       formData: { ...formData, image: formData.image ? 'has image' : 'no image' }
     });
     let sectionKey: keyof AdminData | null = null; // Will be set based on activeTab
+
+    // Handle Email Settings FIRST (before other checks) - it's in contact-page tab
+    if (editingItem === 'email-settings') {
+      console.log('📧 Email settings handler triggered');
+      // Use async IIFE to properly handle the async operation
+      (async () => {
+        try {
+          const payload: any = {
+            smtpHost: formData.smtpHost || '',
+            smtpPort: formData.smtpPort || 587,
+            smtpSecure: formData.smtpSecure !== undefined ? formData.smtpSecure : false,
+            smtpUser: formData.smtpUser || '',
+            fromEmail: formData.fromEmail || '',
+            fromName: formData.fromName || '3i MedTech',
+            toEmail: formData.toEmail || '',
+            isActive: formData.isActive ?? true,
+          };
+
+          // Only include password if it's not masked and not empty
+          if (formData.smtpPassword && formData.smtpPassword !== '***' && formData.smtpPassword.trim() !== '') {
+            payload.smtpPassword = formData.smtpPassword;
+          }
+
+          console.log('📧 Saving email settings via API', {
+            url: getApiUrl('/api/cms/email-settings'),
+            payload: { ...payload, smtpPassword: payload.smtpPassword ? '***' : undefined },
+          });
+
+          const response = await fetch(getApiUrl('/api/cms/email-settings'), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() as any },
+            body: JSON.stringify(payload),
+          });
+
+          let result: any = {};
+          try {
+            result = await response.json();
+          } catch (e) {
+            console.error('Failed to parse response JSON:', e);
+          }
+
+          console.log('📧 Email settings response', { status: response.status, ok: response.ok, result });
+
+          if (response.ok) {
+            showToast.success('Email settings saved successfully!');
+            // Refresh email settings in ContactPage_cms if it's active
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('emailSettingsChanged'));
+            }
+            // Close modal and reset after successful save
+            setShowModal(false);
+            setFormData({});
+            setEditingItem(null);
+          } else {
+            const errorMsg = result?.message || result?.error || 'Failed to save email settings';
+            console.error('❌ Email settings save failed:', errorMsg, result);
+            showToast.error(errorMsg);
+          }
+        } catch (error: any) {
+          console.error('❌ Error saving email settings:', error);
+          showToast.error(error?.message || 'Error saving email settings');
+        }
+      })();
+      return;
+    }
 
     if (activeTab === 'home-page') {
       // Handle new Home Page sections
@@ -2571,53 +2637,6 @@ export default function AdminDashboard() {
         return;
       }
 
-      // Handle Email Settings
-      if (editingItem === 'email-settings') {
-        (async () => {
-          try {
-            const payload: any = {
-              smtpHost: formData.smtpHost || '',
-              smtpPort: formData.smtpPort || 587,
-              smtpSecure: formData.smtpSecure !== undefined ? formData.smtpSecure : false,
-              smtpUser: formData.smtpUser || '',
-              fromEmail: formData.fromEmail || '',
-              fromName: formData.fromName || '3i MedTech',
-              toEmail: formData.toEmail || '',
-              isActive: formData.isActive ?? true
-            };
-            
-            // Only include password if it's not masked and not empty
-            if (formData.smtpPassword && formData.smtpPassword !== '***' && formData.smtpPassword.trim() !== '') {
-              payload.smtpPassword = formData.smtpPassword;
-            }
-            
-            const response = await fetch(getApiUrl('/api/cms/email-settings'), {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', ...authHeaders() as any },
-                body: JSON.stringify(payload)
-              });
-            
-            const result = await response.json();
-            
-            if (response.ok) {
-              showToast.success('Email settings saved successfully!');
-              // Refresh email settings in ContactPage_cms if it's active
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('emailSettingsChanged'));
-              }
-            } else {
-              showToast.error(result.message || 'Failed to save email settings');
-            }
-          } catch (error: any) {
-            console.error('Error saving email settings:', error);
-            showToast.error(error.message || 'Error saving email settings');
-          }
-        })();
-        setShowModal(false);
-        setFormData({});
-        setEditingItem(null);
-        return;
-      }
 
     } else if (activeTab === 'portable-xray-page') {
       if (editingItem === 'portable-xray-hero') {
@@ -10047,10 +10066,24 @@ export default function AdminDashboard() {
                     Cancel
                   </button>
                   <button
-                    type="submit"
-                    onClick={(e) => {
-                      console.log('🔴 Update button clicked', { editingItem, formData, activeTab });
-                      // Let the form handle submission, but log for debugging
+                    type="button"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('🔴 Update button clicked', { 
+                        editingItem, 
+                        activeTab,
+                        formDataKeys: Object.keys(formData),
+                        toEmail: formData.toEmail,
+                        fromEmail: formData.fromEmail
+                      });
+                      // Explicitly invoke handleSubmit and await it
+                      try {
+                        await handleSubmit(e);
+                      } catch (error) {
+                        console.error('❌ Error in button onClick handler:', error);
+                        showToast.error('An error occurred while saving. Please check the console.');
+                      }
                     }}
                     className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={uploadingImage}
