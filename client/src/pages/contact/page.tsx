@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Header from '../../components/feature/Header';
 import Footer from '../../components/feature/Footer';
+import { trackFormSubmit } from '../../utils/analytics';
 
 export default function Contact() {
   // CMS Data State
@@ -131,6 +132,9 @@ export default function Contact() {
       const result = await response.json();
 
       if (response.ok) {
+        // Track successful form submission (NO PII - only form type)
+        trackFormSubmit('contact_form', 'Contact Form');
+        
         setSubmitMessage({ 
           type: 'success', 
           text: 'Thank you! Your message has been sent successfully. We will get back to you soon.' 
@@ -723,7 +727,7 @@ export default function Contact() {
               {contactForm?.description && (
                 <p className="text-gray-700 mb-8 text-center">{contactForm.description}</p>
               )}
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6" data-ga-form-type="contact_form" data-ga-form-name="Contact Form">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-gray-700 font-medium mb-2">

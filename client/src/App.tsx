@@ -7,9 +7,16 @@ import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { Toaster } from 'sonner';
 import { AdminProvider } from "./contexts/AdminContext";
+import { initGA } from "./utils/analytics";
+import { PageTrackingWrapper } from "./components/common/PageTrackingWrapper";
 
 
 function App() {
+  // Initialize Google Analytics GA4 once at app startup
+  useEffect(() => {
+    initGA();
+  }, []);
+
   // Initialize AOS (Animate On Scroll) library with optimized settings
   useEffect(() => {
     AOS.init({
@@ -56,10 +63,12 @@ function App() {
   return (
     <I18nextProvider i18n={i18n}>
       <BrowserRouter basename={__BASE_PATH__}>
-        <AdminProvider>
-          <Toaster position="top-right" richColors />
-          <AppRoutes />
-        </AdminProvider>
+        <PageTrackingWrapper>
+          <AdminProvider>
+            <Toaster position="top-right" richColors />
+            <AppRoutes />
+          </AdminProvider>
+        </PageTrackingWrapper>
       </BrowserRouter>
     </I18nextProvider>
   );
