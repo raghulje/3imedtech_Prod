@@ -17,28 +17,28 @@ async function seedEmailSettings() {
       console.log("⚠️  Email settings already exist. Updating with new configuration...");
       
       await existing.update({
-        smtpHost: "smtp.gmail.com",
-        smtpPort: 587,
-        smtpSecure: false, // false for TLS (port 587), true for SSL (port 465)
-        smtpUser: "sivagami.n@refex.co.in",
-        smtpPassword: "iwxzlygzarwaqzlc",
-        fromEmail: "sivagami.n@refex.co.in",
-        fromName: "3i MedTech",
-        toEmail: "sivagami.n@refex.co.in", // Where contact form submissions will be sent
+        smtpHost: process.env.SMTP_HOST || "smtp.zoho.in",
+        smtpPort: Number(process.env.SMTP_PORT || 465),
+        smtpSecure: String(process.env.SMTP_SECURE || "true").toLowerCase() === "true",
+        smtpUser: process.env.SMTP_USER || "",
+        smtpPassword: process.env.SMTP_PASS || "",
+        fromEmail: process.env.FROM_EMAIL || process.env.SMTP_USER || "",
+        fromName: process.env.FROM_NAME || "3i MedTech",
+        toEmail: process.env.CONTACT_TO_EMAIL || process.env.SMTP_USER || "", // Where contact form submissions will be sent
         isActive: true,
       });
       
       console.log("✅ Email settings updated successfully!");
     } else {
       await EmailSettings.create({
-        smtpHost: "smtp.gmail.com",
-        smtpPort: 587,
-        smtpSecure: false, // false for TLS (port 587), true for SSL (port 465)
-        smtpUser: "sivagami.n@refex.co.in",
-        smtpPassword: "iwxzlygzarwaqzlc",
-        fromEmail: "sivagami.n@refex.co.in",
-        fromName: "3i MedTech",
-        toEmail: "sivagami.n@refex.co.in", // Where contact form submissions will be sent
+        smtpHost: process.env.SMTP_HOST || "smtp.zoho.in",
+        smtpPort: Number(process.env.SMTP_PORT || 465),
+        smtpSecure: String(process.env.SMTP_SECURE || "true").toLowerCase() === "true",
+        smtpUser: process.env.SMTP_USER || "",
+        smtpPassword: process.env.SMTP_PASS || "",
+        fromEmail: process.env.FROM_EMAIL || process.env.SMTP_USER || "",
+        fromName: process.env.FROM_NAME || "3i MedTech",
+        toEmail: process.env.CONTACT_TO_EMAIL || process.env.SMTP_USER || "", // Where contact form submissions will be sent
         isActive: true,
       });
       
@@ -46,11 +46,11 @@ async function seedEmailSettings() {
     }
 
     console.log("\n📋 Email Configuration:");
-    console.log("   SMTP Host: smtp.gmail.com");
-    console.log("   SMTP Port: 587 (TLS)");
-    console.log("   SMTP User: sivagami.n@refex.co.in");
-    console.log("   From Email: sivagami.n@refex.co.in");
-    console.log("   To Email: sivagami.n@refex.co.in");
+    console.log(`   SMTP Host: ${process.env.SMTP_HOST || "smtp.zoho.in"}`);
+    console.log(`   SMTP Port: ${process.env.SMTP_PORT || 465}`);
+    console.log(`   SMTP User: ${process.env.SMTP_USER || "(not set)"}`);
+    console.log(`   From Email: ${process.env.FROM_EMAIL || process.env.SMTP_USER || "(not set)"}`);
+    console.log(`   To Email: ${process.env.CONTACT_TO_EMAIL || process.env.SMTP_USER || "(not set)"}`);
     console.log("\n✅ Email settings seeded successfully!\n");
   } catch (error) {
     console.error("❌ Error seeding email settings:", error);

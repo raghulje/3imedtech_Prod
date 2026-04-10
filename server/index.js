@@ -320,8 +320,12 @@ sequelize
     // Initialize email service
     try {
       const { initializeEmailService } = require('./utils/emailService');
-      await initializeEmailService();
-      console.log("✅ Email service initialized");
+      const emailTransporter = await initializeEmailService();
+      if (emailTransporter) {
+        console.log("✅ Email service initialized");
+      } else {
+        console.warn("⚠️  Email service not initialized. Check SMTP credentials in CMS email settings.");
+      }
     } catch (emailError) {
       console.warn("⚠️  Email service initialization failed (non-critical):", emailError.message);
     }

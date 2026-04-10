@@ -1,55 +1,118 @@
 const nodemailer = require('nodemailer');
 const { EmailSettings } = require('../models');
 
-let transporter = null;
+function toBool(value, defaultValue = false) {
+  if (value === undefined || value === null || value === '') return defaultValue;
+  if (typeof value === 'boolean') return value;
+  return String(value).toLowerCase() === 'true';
+}
+
+function normalizeSmtpError(error) {
+  const authFailed = error?.code === 'EAUTH' || error?.responseCode === 535;
+  if (authFailed) {
+    const friendly = new Error('SMTP authentication failed. Check username/password');
+    friendly.code = 'SMTP_AUTH_FAILED';
+    friendly.cause = error;
+    return friendly;
+  }
+  return error;
+}
+
+async function getSMTPConfig() {
+  const settings = await EmailSettings.findOne({ where: { isActive: true } });
+
+  const dbHost = settings?.smtpHost;
+  const dbPort = settings?.smtpPort;
+  const dbUser = settings?.smtpUser;
+  const dbPass = settings?.smtpPassword;
+  const dbSecure = settings?.smtpSecure;
+
+  if (dbHost && dbPort && dbUser && dbPass) {
+    console.log('[Email] Using SMTP from DB');
+    return {
+      source: 'db',
+      smtpHost: dbHost,
+      smtpPort: Number(dbPort),
+      smtpUser: dbUser,
+      smtpPass: dbPass,
+      smtpSecure: toBool(dbSecure, Number(dbPort) === 465),
+      settings,
+    };
+  }
+
+  console.log('[Email] Using SMTP from ENV');
+  const envHost = process.env.SMTP_HOST || 'smtp.zoho.in';
+  const envPort = Number(process.env.SMTP_PORT || 465);
+  const envUser = process.env.SMTP_USER;
+  const envPass = process.env.SMTP_PASS;
+  const envSecure = toBool(process.env.SMTP_SECURE, envPort === 465);
+
+  return {
+    source: 'env',
+    smtpHost: envHost,
+    smtpPort: envPort,
+    smtpUser: envUser,
+    smtpPass: envPass,
+    smtpSecure: envSecure,
+    settings,
+  };
+}
+
+async function createTransporter() {
+  const config = await getSMTPConfig();
+
+  if (!config.smtpHost || !config.smtpPort || !config.smtpUser || !config.smtpPass) {
+    throw new Error('SMTP not configured. Please configure SMTP in CMS or environment variables.');
+  }
+
+  console.log('[Email] SMTP config:', {
+    source: config.source,
+    host: config.smtpHost,
+    port: config.smtpPort,
+    user: config.smtpUser,
+    secure: config.smtpSecure,
+    passSet: Boolean(config.smtpPass),
+  });
+
+  const transporter = nodemailer.createTransport({
+    host: config.smtpHost,
+    port: Number(config.smtpPort),
+    secure: toBool(config.smtpSecure, Number(config.smtpPort) === 465),
+    auth: {
+      user: config.smtpUser,
+      pass: config.smtpPass,
+    },
+  });
+
+  try {
+    await transporter.verify();
+    console.log('[Email] SMTP transporter verified successfully');
+  } catch (error) {
+    console.error('[Email] SMTP transporter verification failed:', error.message);
+    throw normalizeSmtpError(error);
+  }
+
+  return { transporter, config };
+}
 
 async function initializeEmailService() {
   try {
-    const settings = await EmailSettings.findOne({ where: { isActive: true } });
-    
-    if (!settings || !settings.smtpHost || !settings.smtpUser || !settings.smtpPassword) {
-      console.warn('Email settings not configured. Email functionality will be disabled.');
-      return null;
-    }
-
-    transporter = nodemailer.createTransport({
-      host: settings.smtpHost,
-      port: settings.smtpPort || (settings.smtpSecure ? 465 : 587),
-      secure: settings.smtpSecure, // true for 465, false for other ports
-      auth: {
-        user: settings.smtpUser,
-        pass: settings.smtpPassword,
-      },
-    });
-
-    // Verify connection
-    await transporter.verify();
+    const { transporter } = await createTransporter();
     console.log('✅ Email service initialized successfully');
     return transporter;
   } catch (error) {
-    console.error('❌ Error initializing email service:', error);
+    console.error('❌ Error initializing email service:', error.message);
     return null;
   }
 }
 
 async function sendTestEmail(testEmail) {
   try {
-    // Re-initialize if transporter is null
-    if (!transporter) {
-      await initializeEmailService();
-    }
-
-    if (!transporter) {
-      throw new Error('Email service not configured. Please save your SMTP settings first.');
-    }
-
-    const settings = await EmailSettings.findOne({ where: { isActive: true } });
-    if (!settings) {
-      throw new Error('Email settings not found');
-    }
+    const { transporter, config } = await createTransporter();
+    const fromName = config.settings?.fromName || '3i MedTech Website';
 
     const mailOptions = {
-      from: `"${settings.fromName || '3i MedTech Website'}" <${settings.fromEmail || settings.smtpUser}>`,
+      from: `"${fromName}" <${config.smtpUser}>`,
       to: testEmail,
       subject: 'Test Email from 3i MedTech CMS',
       html: `
@@ -75,29 +138,24 @@ Sent from 3i MedTech CMS at ${new Date().toLocaleString()}
     console.log('✅ Test email sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('❌ Error sending test email:', error);
-    throw error;
+    const normalized = normalizeSmtpError(error);
+    console.error('❌ Error sending test email:', normalized.message);
+    throw normalized;
   }
 }
 
 async function sendContactFormEmail(formData) {
   try {
-    // Re-initialize if transporter is null
-    if (!transporter) {
-      await initializeEmailService();
-    }
-
-    if (!transporter) {
-      throw new Error('Email service not configured');
-    }
-
     const settings = await EmailSettings.findOne({ where: { isActive: true } });
-    if (!settings || !settings.toEmail) {
+    if (!settings?.toEmail) {
       throw new Error('Recipient email not configured');
     }
 
+    const { transporter, config } = await createTransporter();
+    const fromName = settings.fromName || '3i MedTech Website';
+
     const mailOptions = {
-      from: `"${settings.fromName || '3i MedTech Website'}" <${settings.fromEmail || settings.smtpUser}>`,
+      from: `"${fromName}" <${config.smtpUser}>`,
       to: settings.toEmail,
       subject: `New Contact Form Submission - ${formData.inquiry || 'General Inquiry'}`,
       html: `
@@ -135,14 +193,13 @@ Submitted from 3i MedTech website contact form
     console.log('✅ Contact form email sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('❌ Error sending contact form email:', error);
-    throw error;
+    const normalized = normalizeSmtpError(error);
+    console.error('❌ Error sending contact form email:', normalized.message);
+    throw normalized;
   }
 }
 
-// Re-initialize email service when settings change
 async function refreshEmailService() {
-  transporter = null;
   return await initializeEmailService();
 }
 

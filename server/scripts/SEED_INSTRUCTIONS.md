@@ -95,7 +95,7 @@ After seeding the contact page, configure email settings:
 1. Go to CMS → Contact Page → Email Settings tab
 2. Click "Configure Email" or "Edit Settings"
 3. Fill in your SMTP details:
-   - SMTP Host (e.g., smtp.gmail.com)
+   - SMTP Host (e.g., smtp.zoho.in)
    - SMTP Port (587 for TLS, 465 for SSL)
    - SMTP Username (your email)
    - SMTP Password (your email password or app password)
@@ -116,7 +116,7 @@ Once email settings are configured:
 
 ### Email Not Sending
 - Verify SMTP settings are correct
-- Check if your email provider requires "App Passwords" (Gmail)
+- Check if your email provider requires app-specific passwords
 - Ensure SMTP port matches your security setting (587 for TLS, 465 for SSL)
 - Use the "Send Test" button to verify settings
 
