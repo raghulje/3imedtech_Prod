@@ -78,6 +78,7 @@ app.use("/api/cms/search-results", require("./routes/search_results_cms"));
 app.use("/api/cms/users", require("./routes/user_management_cms"));
 app.use("/api/cms/email-settings", require("./routes/email_settings_cms"));
 app.use("/api/contact", require("./routes/contact_form"));
+app.use("/api/contact-form", require("./routes/contact_form"));
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

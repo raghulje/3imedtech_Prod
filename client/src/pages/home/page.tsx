@@ -62,6 +62,9 @@ const HomePage = () => {
     }
   };
 
+  // Track which sections have already been reported to GA to avoid duplicates
+  const trackedSectionsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     // Smooth scroll to top on page load
     if (window.pageYOffset > 0) {
@@ -78,6 +81,18 @@ const HomePage = () => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
           entry.target.classList.add('animate-fade-in-up');
+
+          // Section view tracking via data-ga-section attribute
+          const sectionId = (entry.target as HTMLElement).getAttribute('data-ga-section');
+          if (sectionId && !trackedSectionsRef.current.has(sectionId)) {
+            trackedSectionsRef.current.add(sectionId);
+            try {
+              // Only send high-level content metadata, no PII
+              trackEvent('section_view', 'content', sectionId);
+            } catch {
+              // Analytics failures should never break UX
+            }
+          }
         }
       });
     }, observerOptions);
@@ -181,6 +196,7 @@ const HomePage = () => {
       {homeAboutSection?.isActive !== false && (
         <section 
           className="py-14 pb-24 lg:pb-32 animate-on-scroll" 
+          data-ga-section="home_about_section"
           style={{ backgroundColor: homeAboutSection?.backgroundColor || '#1E4C84' }}
         >
         <div className="max-w-[1880px] mx-auto px-6 lg:px-12">
@@ -212,7 +228,7 @@ const HomePage = () => {
 
       {/* Image Boxes Section */}
       {(homeImageBoxes.length > 0 || homeImageBoxes.length === 0) && (
-        <section className="relative py-0 animate-on-scroll">
+        <section className="relative py-0 animate-on-scroll" data-ga-section="home_image_boxes">
           {/* Half Blue, Half Grey Background */}
           <div className="absolute inset-0">
             <div className="h-1/2 bg-[#2879B6]"></div>
@@ -509,6 +525,7 @@ const HomePage = () => {
       {homeCommitment?.isActive !== false && (
         <section 
           className="pb-14 relative overflow-hidden" 
+          data-ga-section="home_commitment_section"
           style={{ backgroundColor: homeCommitment?.backgroundColor || '#F9FAFB' }}
           data-aos="fade-in"
           data-aos-duration="200"

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ASSETS } from '../../constants/assets';
+import { trackEvent } from '../../utils/analytics';
 
 interface FooterProps {
   footerData?: {
@@ -152,6 +153,11 @@ const Footer = ({ footerData: propFooterData }: FooterProps = {}) => {
                         fontFamily: 'Rubik, sans-serif',
                         fontSize: '15px'
                       }}
+                      onClick={() => {
+                        try {
+                          trackEvent('contact_click', 'contact', 'phone_footer');
+                        } catch {}
+                      }}
                     >
                       <span>{formatted.countryCode}</span>
                       <span style={{ marginLeft: '8px', letterSpacing: '0.5px' }}>{formatted.number}</span>
@@ -164,6 +170,11 @@ const Footer = ({ footerData: propFooterData }: FooterProps = {}) => {
                         color: '#0E2B5C',
                         fontFamily: 'Rubik, sans-serif',
                         fontSize: '15px'
+                      }}
+                      onClick={() => {
+                        try {
+                          trackEvent('contact_click', 'contact', 'phone_footer');
+                        } catch {}
                       }}
                     >
                       {footerData.phone}
@@ -178,6 +189,11 @@ const Footer = ({ footerData: propFooterData }: FooterProps = {}) => {
                       color: '#0E2B5C',
                       fontFamily: 'Rubik, sans-serif',
                       fontSize: '15px'
+                    }}
+                    onClick={() => {
+                      try {
+                        trackEvent('contact_click', 'contact', 'email_footer');
+                      } catch {}
                     }}
                   >
                     {footerData.email}

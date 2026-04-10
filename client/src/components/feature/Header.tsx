@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ASSETS } from '../../constants/assets';
+import { trackEvent } from '../../utils/analytics';
 
 interface HeaderProps {
   headerData?: {
@@ -493,6 +494,11 @@ const Header = ({ headerData: propHeaderData }: HeaderProps = {}) => {
                       <a 
                         href={`tel:${(headerData?.phone || '+91 94440 26307').replace(/\s/g, '')}`} 
                         className="text-[#7AB730] font-semibold whitespace-nowrap"
+                        onClick={() => {
+                          try {
+                            trackEvent('contact_click', 'contact', 'phone_header');
+                          } catch {}
+                        }}
                       >
                         {headerData?.phone || '+91 94440 26307'}
                       </a>

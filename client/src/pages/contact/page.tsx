@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Header from '../../components/feature/Header';
 import Footer from '../../components/feature/Footer';
-import { trackFormSubmit } from '../../utils/analytics';
+import { trackFormSubmit, trackEvent } from '../../utils/analytics';
 
 export default function Contact() {
   // CMS Data State
@@ -109,6 +109,10 @@ export default function Contact() {
     if (!recaptchaVerified) {
       setSubmitMessage({ type: 'error', text: 'Please verify that you are not a robot by checking the box.' });
       setIsSubmitting(false);
+      // Track blocked submit due to missing recaptcha (no PII)
+      try {
+        trackEvent('form_blocked', 'form', 'contact_form_recaptcha');
+      } catch {}
       return;
     }
     
@@ -116,6 +120,10 @@ export default function Contact() {
     if (!formData.fname || !formData.email || !formData.organization || !formData.message || !formData.companySize || !formData.inquiry) {
       setSubmitMessage({ type: 'error', text: 'Please fill in all required fields.' });
       setIsSubmitting(false);
+      // Track validation error (no field values sent)
+      try {
+        trackEvent('form_validation_error', 'form', 'contact_form');
+      } catch {}
       return;
     }
     

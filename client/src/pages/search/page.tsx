@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../../components/feature/Header';
 import Footer from '../../components/feature/Footer';
+import { trackEvent } from '../../utils/analytics';
 
 interface SearchResult {
   id: number;
@@ -59,6 +60,12 @@ const SearchPage = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    // Track search event (NO search text / PII sent)
+    try {
+      trackEvent('search', 'engagement', 'site_search');
+    } catch {
+      // Ignore analytics errors
+    }
     navigate(`/search?s=${encodeURIComponent(searchInput)}&page=1`);
     setCurrentPage(1);
   };
