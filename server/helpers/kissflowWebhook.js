@@ -7,7 +7,7 @@ const https = require('https');
 const http = require('http');
 
 const KISSFLOW_WEBHOOK_URL =
-  'https://development-refexgroup.kissflow.com/integration/2/AcCMptp3yqcn/webhook/4e9yNyjAD6uxENJXAhNbtXzEGuOVQbDukBaeyWoG0kkqoeCkhIaxbK8FF4sWPWtcuQema2TcT-gLfVu3ot6g';
+  'https://refexgroup.kissflow.com/integration/2/AcCMptlq60zH/webhook/4e9yNyjAD6uxENJXAhNbtXzEGuOVQbDukBaeyWoG0kkqoeCkhIaxbK8FF4sWPWtcuQema2TcT-gLfVu3ot6g';
 
 const QUEUE_DELAY_MS_MIN = 3000;
 const QUEUE_DELAY_MS_MAX = 4000;
