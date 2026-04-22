@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react';
 import Header from '../../components/feature/Header';
 import Footer from '../../components/feature/Footer';
 import { trackFormSubmit, trackEvent } from '../../utils/analytics';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
+import { useCooldownTimer } from '../../hooks/enquiry/useCooldownTimer';
+import { useEmailValidation } from '../../hooks/enquiry/useEmailValidation';
+import { usePhoneValidation } from '../../hooks/enquiry/usePhoneValidation';
+import { checkEnquiry, createEnquiry, HttpError } from '../../hooks/enquiry/enquiryApi';
 
 export default function Contact() {
   // CMS Data State
@@ -9,7 +15,6 @@ export default function Contact() {
   const [contactInfoCards, setContactInfoCards] = useState<any[]>([]);
   const [contactMap, setContactMap] = useState<any>(null);
   const [contactForm, setContactForm] = useState<any>(null);
-  const [recaptchaVerified, setRecaptchaVerified] = useState(false);
 
   // Fetch CMS Data
   const fetchContactHero = async () => {
@@ -99,25 +104,38 @@ export default function Contact() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<'fname' | 'email' | 'phone' | 'message', string>>>({});
+  const [touched, setTouched] = useState<Partial<Record<'fname' | 'email' | 'phone' | 'message', boolean>>>({});
+  const { isCoolingDown, secondsLeft, startCooldown } = useCooldownTimer(10);
+
+  const emailValidation = useEmailValidation(formData.email, true);
+  const phoneValidation = usePhoneValidation(formData.phone, true);
+  const messageError =
+    !formData.message.trim()
+      ? 'Message is required'
+      : formData.message.trim().length < 50
+        ? 'Message must be at least 50 characters'
+        : null;
+
+  const validateAndSet = (field: keyof typeof touched) => {
+    const next: Partial<Record<'fname' | 'email' | 'phone' | 'message', string>> = {};
+    if (field === 'fname') {
+      next.fname = !formData.fname.trim() ? 'Name is required' : formData.fname.trim().length < 2 ? 'Name must be at least 2 characters' : undefined;
+    }
+    if (field === 'email') next.email = emailValidation.validate() || undefined;
+    if (field === 'phone') next.phone = phoneValidation.validate() || undefined;
+    if (field === 'message') next.message = messageError || undefined;
+    setFieldErrors((prev) => ({ ...prev, ...next }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitMessage(null);
-    
-    // Check if reCAPTCHA checkbox is checked
-    if (!recaptchaVerified) {
-      setSubmitMessage({ type: 'error', text: 'Please verify that you are not a robot by checking the box.' });
-      setIsSubmitting(false);
-      // Track blocked submit due to missing recaptcha (no PII)
-      try {
-        trackEvent('form_blocked', 'form', 'contact_form_recaptcha');
-      } catch {}
-      return;
-    }
+    setFieldErrors({});
     
     // Validate required fields
-    if (!formData.fname || !formData.email || !formData.organization || !formData.message || !formData.companySize || !formData.inquiry) {
+    if (!formData.fname || !formData.email || !formData.phone || !formData.organization || !formData.message || !formData.companySize || !formData.inquiry) {
       setSubmitMessage({ type: 'error', text: 'Please fill in all required fields.' });
       setIsSubmitting(false);
       // Track validation error (no field values sent)
@@ -126,8 +144,84 @@ export default function Contact() {
       } catch {}
       return;
     }
+
+    // Field-level validation (email/phone/name)
+    const nextErrors: typeof fieldErrors = {};
+    if (formData.fname.trim().length < 2) nextErrors.fname = 'Name must be at least 2 characters';
+    const emailErr = emailValidation.validate();
+    if (emailErr) nextErrors.email = emailErr;
+    const phoneErr = phoneValidation.validate();
+    if (phoneErr) nextErrors.phone = phoneErr;
+    if (messageError) nextErrors.message = messageError;
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      setTouched({ fname: true, email: true, phone: true, message: true });
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (isCoolingDown) {
+      setIsSubmitting(false);
+      return;
+    }
     
     try {
+      // Duplicate check (skip if endpoint not present)
+      try {
+        const dup = await checkEnquiry({
+          name: formData.fname.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+        });
+        if (dup?.exists) {
+          const field = dup.field || 'phone';
+          const msg =
+            field === 'email'
+              ? 'This email is already registered'
+              : field === 'phone'
+                ? 'This phone number is already registered'
+                : 'This name is already registered';
+          setFieldErrors((prev) => ({ ...prev, [field === 'name' ? 'fname' : field]: msg } as any));
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        if (!(err instanceof HttpError && err.status === 404)) throw err;
+      }
+
+      // Preferred API
+      try {
+        await createEnquiry({
+          name: formData.fname.trim(),
+          organization: formData.organization,
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+          companySize: formData.companySize,
+          inquiry: formData.inquiry,
+          message: formData.message,
+          source: '3imed-contact',
+        });
+        trackFormSubmit('contact_form', 'Contact Form');
+        setSubmitMessage({
+          type: 'success',
+          text: 'Thank you! Your message has been sent successfully. We will get back to you soon.'
+        });
+        setFormData({
+          fname: '',
+          organization: '',
+          email: '',
+          phone: '',
+          companySize: '',
+          inquiry: '',
+          message: ''
+        });
+        startCooldown();
+        setIsSubmitting(false);
+        return;
+      } catch (err) {
+        if (!(err instanceof HttpError && err.status === 404)) throw err;
+      }
+
       // Submit form to server
       const response = await fetch('/api/contact/submit', {
         method: 'POST',
@@ -158,7 +252,7 @@ export default function Contact() {
           inquiry: '',
           message: ''
         });
-            setRecaptchaVerified(false);
+        startCooldown();
         
         // Clear success message after 5 seconds
         setTimeout(() => {
@@ -187,6 +281,11 @@ export default function Contact() {
       ...formData,
       [e.target.name]: e.target.value
     });
+    const key = e.target.name as keyof typeof touched;
+    if (key in touched) {
+      setTouched((prev) => ({ ...prev, [key]: true }));
+      if (touched[key]) validateAndSet(key);
+    }
   };
 
   return (
@@ -746,10 +845,15 @@ export default function Contact() {
                     name="fname"
                     value={formData.fname}
                     onChange={handleChange}
+                    onBlur={() => {
+                      setTouched((prev) => ({ ...prev, fname: true }));
+                      validateAndSet('fname');
+                    }}
                     placeholder="e.g., John Doe"
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded focus:outline-none focus:border-[#4A90A4]"
+                    className={`w-full px-4 py-3 border rounded focus:outline-none focus:border-[#4A90A4] ${fieldErrors.fname ? 'border-red-500' : 'border-gray-300'}`}
                   />
+                  {fieldErrors.fname && <p className="text-xs text-red-500 mt-1">{fieldErrors.fname}</p>}
                 </div>
                 <div>
                   <label className="block text-gray-700 font-medium mb-2">
@@ -777,23 +881,46 @@ export default function Contact() {
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
+                    onBlur={() => {
+                      setTouched((prev) => ({ ...prev, email: true }));
+                      validateAndSet('email');
+                    }}
                     placeholder="name@company.com"
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded focus:outline-none focus:border-[#4A90A4]"
+                    className={`w-full px-4 py-3 border rounded focus:outline-none focus:border-[#4A90A4] ${fieldErrors.email ? 'border-red-500' : 'border-gray-300'}`}
                   />
+                  {fieldErrors.email && <p className="text-xs text-red-500 mt-1">{fieldErrors.email}</p>}
                 </div>
                 <div>
                   <label className="block text-gray-700 font-medium mb-2">
-                    Phone number
+                    Phone number *
                   </label>
-                  <input 
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="Full Number (incl. prefix)"
-                    className="w-full px-4 py-3 border border-gray-300 rounded focus:outline-none focus:border-[#4A90A4]"
-                  />
+                  <div className={`w-full px-4 py-2 border rounded focus-within:border-[#4A90A4] transition-all duration-200 ${fieldErrors.phone ? 'border-red-500' : 'border-gray-300'}`}>
+                    <PhoneInput
+                      country="in"
+                      value={formData.phone.replace(/^\+/, '')}
+                      onChange={(value) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          phone: value ? `+${value}` : '',
+                        }))
+                      }
+                      inputProps={{
+                        name: 'phone',
+                        autoComplete: 'tel',
+                        required: true,
+                        onBlur: () => {
+                          setTouched((prev) => ({ ...prev, phone: true }));
+                          validateAndSet('phone');
+                        }
+                      }}
+                      containerClass="w-full"
+                      inputClass="!w-full !border-0 !shadow-none focus:!outline-none"
+                      buttonClass="!bg-transparent !border-0"
+                      placeholder="Full Number (incl. prefix)"
+                    />
+                  </div>
+                  {fieldErrors.phone && <p className="text-xs text-red-500 mt-1">{fieldErrors.phone}</p>}
                 </div>
               </div>
 
@@ -859,88 +986,18 @@ export default function Contact() {
                   name="message"
                   value={formData.message}
                   onChange={handleChange}
+                  onBlur={() => {
+                    setTouched((prev) => ({ ...prev, message: true }));
+                    validateAndSet('message');
+                  }}
                   placeholder="Let us know what you need."
                   rows={6}
                   maxLength={500}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded focus:outline-none focus:border-[#4A90A4] resize-none"
+                  className={`w-full px-4 py-3 border rounded focus:outline-none focus:border-[#4A90A4] resize-none ${fieldErrors.message ? 'border-red-500' : 'border-gray-300'}`}
                 ></textarea>
                 <p className="text-sm text-gray-500 mt-2">Maximum 500 characters</p>
-              </div>
-
-              {/* Dummy reCAPTCHA Widget */}
-              <div className="flex justify-start">
-                <div className="relative" style={{ marginBottom: '20px' }}>
-                  <div 
-                    className="bg-white border-2 rounded cursor-pointer hover:border-gray-400 transition-colors"
-                    style={{
-                      width: '304px',
-                      height: '78px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      padding: '8px 14px',
-                      boxShadow: '0 0 4px rgba(0,0,0,0.1)',
-                      borderColor: recaptchaVerified ? '#4285F4' : '#d3d3d3',
-                      fontFamily: 'Roboto, Helvetica, Arial, sans-serif'
-                    }}
-                    onClick={() => setRecaptchaVerified(!recaptchaVerified)}
-                  >
-                    <div className="flex items-center gap-3 flex-1 h-full">
-                      {/* Checkbox */}
-                      <div 
-                        className={`flex items-center justify-center transition-all ${
-                          recaptchaVerified 
-                            ? 'bg-[#4285F4] border-[#4285F4]' 
-                            : 'bg-white border-gray-400'
-                        }`}
-                        style={{ 
-                          width: '24px', 
-                          height: '24px', 
-                          border: '2px solid',
-                          borderColor: recaptchaVerified ? '#4285F4' : '#d3d3d3',
-                          borderRadius: '3px',
-                          flexShrink: 0
-                        }}
-                      >
-                        {recaptchaVerified && (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="white"/>
-                          </svg>
-                        )}
-                      </div>
-                      
-                      {/* Text */}
-                      <div className="flex-1">
-                        <div style={{ fontSize: '14px', fontWeight: 400, color: '#202124', lineHeight: '20px' }}>
-                          I'm not a robot
-                        </div>
-                        <div style={{ fontSize: '10px', color: '#5f6368', lineHeight: '12px', marginTop: '2px' }}>
-                          reCAPTCHA
-                        </div>
-                      </div>
-                      
-                      {/* Privacy & Terms Links */}
-                      <div className="flex items-center gap-1" style={{ fontSize: '10px', color: '#5f6368' }}>
-                        <a href="#" onClick={(e) => e.preventDefault()} style={{ textDecoration: 'none', color: '#5f6368' }}>Privacy</a>
-                        <span> - </span>
-                        <a href="#" onClick={(e) => e.preventDefault()} style={{ textDecoration: 'none', color: '#5f6368' }}>Terms</a>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* reCAPTCHA Branding Below */}
-                  <div className="absolute" style={{ bottom: '-18px', left: '0', fontSize: '10px', color: '#5f6368', fontFamily: 'Roboto, Helvetica, Arial, sans-serif' }}>
-                    <div className="flex items-center gap-1">
-                      <span>Protected by</span>
-                      <svg width="30" height="12" viewBox="0 0 30 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M7.5 0C3.36 0 0 2.69 0 6s3.36 6 7.5 6c1.74 0 3.36-.72 4.5-1.89L9.9 8.55c-.72.54-1.68.87-2.7.87-2.28 0-4.14-1.8-4.14-4.02 0-2.22 1.86-4.02 4.14-4.02 1.02 0 1.98.33 2.7.87L12 1.89C10.86.72 9.24 0 7.5 0z" fill="#1A73E8"/>
-                        <path d="M15 2.25h-1.5v7.5H15c1.65 0 3-1.35 3-3s-1.35-3-3-3zm0 4.5h-.75v-3H15c.825 0 1.5.675 1.5 1.5s-.675 1.5-1.5 1.5z" fill="#EA4335"/>
-                        <path d="M22.5 2.25c-1.65 0-3 1.35-3 3v3c0 1.65 1.35 3 3 3s3-1.35 3-3v-3c0-1.65-1.35-3-3-3zm1.5 6c0 .825-.675 1.5-1.5 1.5s-1.5-.675-1.5-1.5v-3c0-.825.675-1.5 1.5-1.5s1.5.675 1.5 1.5v3z" fill="#4285F4"/>
-                        <path d="M30 2.25h-1.5v7.5H30V2.25z" fill="#FBBC04"/>
-                      </svg>
-                    </div>
-                  </div>
-                </div>
+                {fieldErrors.message && <p className="text-xs text-red-500 mt-1">{fieldErrors.message}</p>}
               </div>
 
               {/* Submit Message */}
@@ -957,23 +1014,15 @@ export default function Contact() {
               <div>
                 <button 
                   type="submit"
-                  disabled={!recaptchaVerified || isSubmitting}
-                  className={`w-full md:w-auto px-12 py-4 font-semibold rounded transition-colors ${
-                    recaptchaVerified && !isSubmitting
-                      ? 'bg-[#4A90A4] text-white hover:bg-[#3a7a8a] cursor-pointer'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
+                  disabled={isSubmitting || isCoolingDown}
+                  className="w-full md:w-auto px-12 py-4 font-semibold rounded transition-colors bg-[#4A90A4] text-white hover:bg-[#3a7a8a] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>
                       <i className="ri-loader-4-line animate-spin mr-2"></i>
                       Submitting...
                     </>
-                  ) : recaptchaVerified ? (
-                    'Submit'
-                  ) : (
-                    'Complete reCAPTCHA to Submit'
-                  )}
+                  ) : 'Submit'}
                 </button>
               </div>
             </form>
