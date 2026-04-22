@@ -9,6 +9,29 @@ import { useEmailValidation } from '../../hooks/enquiry/useEmailValidation';
 import { usePhoneValidation } from '../../hooks/enquiry/usePhoneValidation';
 import { checkEnquiry, createEnquiry, HttpError } from '../../hooks/enquiry/enquiryApi';
 
+const PRODUCT_OPTIONS = [
+  'FPD C-ARM',
+  'DReam CMT-Dual (Ceiling Type, Dual Detector)',
+  'DReam CMT-Single (Ceiling Type, Single Detector)',
+  'DReam Floor Mounted DR',
+  'ADONIS 100HF/150HF Mobile X-Ray',
+  'ADONIS HF Radiographic Systems 300mA / 500mA / 600mA',
+  'Mini 90 Point-of-Care X-Ray',
+  'ADONIS HF Mobile DR',
+  'PINKVIEW DR PLUS (Digital Mammography)',
+  'PINKVIEW RT (Analog Mammography)',
+  'Glass-Free Flat Panel Detector',
+  'Retrofit Mammography Panel',
+  'DMD D 2000, X-Ray Film Digitizer',
+  'Image Display Monitors',
+  'CT/MR/Mammograph Multi-Modality Workstations',
+  'CD/DVD Publishers',
+  'MedE Drive for Patient Data Storage',
+  'Anamaya',
+  'Philips Achieva 3.0Tesla X-Series',
+  'GE Signa HDxt 1.5Tesla',
+] as const;
+
 export default function Contact() {
   // CMS Data State
   const [contactHero, setContactHero] = useState<any>(null);
@@ -98,18 +121,20 @@ export default function Contact() {
     organization: '',
     email: '',
     phone: '',
+    product: '',
     companySize: '',
     inquiry: '',
     message: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Partial<Record<'fname' | 'email' | 'phone' | 'message', string>>>({});
-  const [touched, setTouched] = useState<Partial<Record<'fname' | 'email' | 'phone' | 'message', boolean>>>({});
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<'fname' | 'email' | 'phone' | 'product' | 'message', string>>>({});
+  const [touched, setTouched] = useState<Partial<Record<'fname' | 'email' | 'phone' | 'product' | 'message', boolean>>>({});
   const { isCoolingDown, secondsLeft, startCooldown } = useCooldownTimer(10);
 
   const emailValidation = useEmailValidation(formData.email, true);
   const phoneValidation = usePhoneValidation(formData.phone, true);
+  const productError = !String(formData.product || '').trim() ? 'Product is required' : null;
   const messageError =
     !formData.message.trim()
       ? 'Message is required'
@@ -118,12 +143,13 @@ export default function Contact() {
         : null;
 
   const validateAndSet = (field: keyof typeof touched) => {
-    const next: Partial<Record<'fname' | 'email' | 'phone' | 'message', string>> = {};
+    const next: Partial<Record<'fname' | 'email' | 'phone' | 'product' | 'message', string>> = {};
     if (field === 'fname') {
       next.fname = !formData.fname.trim() ? 'Name is required' : formData.fname.trim().length < 2 ? 'Name must be at least 2 characters' : undefined;
     }
     if (field === 'email') next.email = emailValidation.validate() || undefined;
     if (field === 'phone') next.phone = phoneValidation.validate() || undefined;
+    if (field === 'product') next.product = productError || undefined;
     if (field === 'message') next.message = messageError || undefined;
     setFieldErrors((prev) => ({ ...prev, ...next }));
   };
@@ -135,7 +161,7 @@ export default function Contact() {
     setFieldErrors({});
     
     // Validate required fields
-    if (!formData.fname || !formData.email || !formData.phone || !formData.organization || !formData.message || !formData.companySize || !formData.inquiry) {
+    if (!formData.fname || !formData.email || !formData.phone || !formData.organization || !formData.product || !formData.message || !formData.companySize || !formData.inquiry) {
       setSubmitMessage({ type: 'error', text: 'Please fill in all required fields.' });
       setIsSubmitting(false);
       // Track validation error (no field values sent)
@@ -152,10 +178,11 @@ export default function Contact() {
     if (emailErr) nextErrors.email = emailErr;
     const phoneErr = phoneValidation.validate();
     if (phoneErr) nextErrors.phone = phoneErr;
+    if (productError) nextErrors.product = productError;
     if (messageError) nextErrors.message = messageError;
     if (Object.keys(nextErrors).length) {
       setFieldErrors(nextErrors);
-      setTouched({ fname: true, email: true, phone: true, message: true });
+      setTouched({ fname: true, email: true, phone: true, product: true, message: true });
       setIsSubmitting(false);
       return;
     }
@@ -196,6 +223,7 @@ export default function Contact() {
           organization: formData.organization,
           email: formData.email.trim(),
           phone: formData.phone.trim(),
+          product: formData.product,
           companySize: formData.companySize,
           inquiry: formData.inquiry,
           message: formData.message,
@@ -211,6 +239,7 @@ export default function Contact() {
           organization: '',
           email: '',
           phone: '',
+          product: '',
           companySize: '',
           inquiry: '',
           message: ''
@@ -248,6 +277,7 @@ export default function Contact() {
           organization: '',
           email: '',
           phone: '',
+          product: '',
           companySize: '',
           inquiry: '',
           message: ''
@@ -976,6 +1006,38 @@ export default function Contact() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-medium mb-2">
+                  Select Product *
+                </label>
+                <div className="relative">
+                  <select 
+                    name="product"
+                    value={formData.product}
+                    onChange={handleChange}
+                    onBlur={() => {
+                      setTouched((prev) => ({ ...prev, product: true }));
+                      validateAndSet('product');
+                    }}
+                    required
+                    className={`w-full px-4 py-3 pr-10 border rounded focus:outline-none focus:border-[#4A90A4] appearance-none bg-white ${fieldErrors.product ? 'border-red-500' : 'border-gray-300'}`}
+                  >
+                    <option value="">Please Select</option>
+                    {PRODUCT_OPTIONS.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                {fieldErrors.product && <p className="text-xs text-red-500 mt-1">{fieldErrors.product}</p>}
               </div>
 
               <div>
