@@ -199,6 +199,83 @@ Submitted from 3i MedTech website contact form
   }
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function sendContactAutoReplyEmail(formData) {
+  try {
+    const { transporter, config } = await createTransporter();
+    const settings = await EmailSettings.findOne({ where: { isActive: true } });
+
+    const customerEmail = formData?.email;
+    if (!customerEmail) {
+      throw new Error('Customer email not provided');
+    }
+
+    const fromName = settings?.fromName || '3iMedtech';
+    const replyTo = settings?.toEmail || config.smtpUser;
+
+    const name = formData?.fname || formData?.name || 'there';
+    const product = formData?.product || '';
+    const organization = formData?.organization || formData?.company || '';
+    const phone = formData?.phone || '';
+    const inquiry = formData?.inquiry || formData?.enquiry || formData?.enquiringFor || '';
+    const message = formData?.message || '';
+
+    const subject = 'We received your enquiry - 3iMedtech';
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #111827;">
+        <h2 style="margin: 0 0 12px 0; font-size: 20px; color: #2563EB;">Thanks for contacting 3iMedtech</h2>
+        <p style="margin: 0 0 12px 0; line-height: 1.6;">Hi ${escapeHtml(name)},</p>
+        <p style="margin: 0 0 12px 0; line-height: 1.6;">
+          We’ve received your enquiry and our team will get back to you shortly.
+        </p>
+        ${(organization || product || phone || inquiry || message) ? `
+          <div style="margin-top: 12px; padding: 14px 16px; background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 10px;">
+            ${organization ? `<p style="margin: 0 0 6px 0; line-height: 1.6;"><strong>Organization:</strong> ${escapeHtml(organization)}</p>` : ''}
+            ${phone ? `<p style="margin: 0 0 6px 0; line-height: 1.6;"><strong>Contact:</strong> ${escapeHtml(phone)}</p>` : ''}
+            ${inquiry ? `<p style="margin: 0 0 6px 0; line-height: 1.6;"><strong>Enquiry type:</strong> ${escapeHtml(inquiry)}</p>` : ''}
+            ${product ? `<p style="margin: 0; line-height: 1.6;"><strong>Product:</strong> ${escapeHtml(product)}</p>` : ''}
+            ${message ? `<p style="margin: 8px 0 0 0; line-height: 1.6; white-space: pre-wrap;"><strong>Message:</strong><br/>${escapeHtml(message)}</p>` : ''}
+          </div>
+        ` : ''}
+        <p style="margin: 18px 0 0 0; font-size: 12px; color: #6B7280; line-height: 1.6;">
+          If you didn’t submit this request, you can ignore this email.
+        </p>
+        <p style="margin: 18px 0 0 0; font-size: 12px; color: #6B7280; line-height: 1.6;">
+          Regards,<br/>3iMedtech Team
+        </p>
+      </div>
+    `;
+
+    const text = `Hi ${name},\n\nWe’ve received your enquiry and our team will get back to you shortly.\n\nYour enquiry details:\n${organization ? `- Organization: ${organization}\n` : ''}${phone ? `- Contact: ${phone}\n` : ''}${inquiry ? `- Enquiry type: ${inquiry}\n` : ''}${product ? `- Product: ${product}\n` : ''}${message ? `- Message: ${message}\n` : ''}\nRegards,\n3iMedtech Team`;
+
+    const mailOptions = {
+      from: `"${fromName}" <${config.smtpUser}>`,
+      to: customerEmail,
+      replyTo,
+      subject,
+      html,
+      text,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('✅ Contact auto-reply sent:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    const normalized = normalizeSmtpError(error);
+    console.error('❌ Error sending contact auto-reply:', normalized.message);
+    throw normalized;
+  }
+}
+
 async function refreshEmailService() {
   return await initializeEmailService();
 }
@@ -206,6 +283,7 @@ async function refreshEmailService() {
 module.exports = {
   initializeEmailService,
   sendContactFormEmail,
+  sendContactAutoReplyEmail,
   sendTestEmail,
   refreshEmailService,
 };

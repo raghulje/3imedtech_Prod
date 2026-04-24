@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { sendContactFormEmail } = require('../utils/emailService');
+const { sendContactFormEmail, sendContactAutoReplyEmail } = require('../utils/emailService');
 const status = require('../helpers/response');
 const { getRequestMeta, phoneToDigitsOnly } = require('../helpers/requestMeta');
 const { sendToKissflowWebhook } = require('../helpers/kissflowWebhook');
@@ -30,16 +30,29 @@ function handleContactSubmit(req, res) {
         // Continue; do not fail the request if email fails
       }
 
+      // Send auto-reply to customer (best-effort)
+      try {
+        if (email) {
+          setImmediate(async () => {
+            try {
+              await sendContactAutoReplyEmail(formData);
+            } catch (autoReplyErr) {
+              console.warn('Contact auto-reply failed (continuing):', autoReplyErr?.message || autoReplyErr);
+            }
+          });
+        }
+      } catch (autoReplyWrapErr) {
+        console.warn('Contact auto-reply scheduling failed (continuing):', autoReplyWrapErr?.message || autoReplyWrapErr);
+      }
+
       const meta = getRequestMeta(req);
       const phoneDigits = phoneToDigitsOnly(formData.phone);
 
       const webhookData = {
         name,
         email,
-        phone: phoneDigits,
         Phone_Number: phoneDigits,
         company: organization,
-        product,
         Product: product,
         message,
         ...(formData.companySize != null && { companySize: formData.companySize }),
