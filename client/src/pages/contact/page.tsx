@@ -11,7 +11,7 @@ import { checkEnquiry, createEnquiry, HttpError } from '../../hooks/enquiry/enqu
 
 function SubmissionSuccessOverlay({ onDone }: { onDone: () => void }) {
   useEffect(() => {
-    const t = window.setTimeout(onDone, 4500);
+    const t = window.setTimeout(onDone, 15000);
     return () => window.clearTimeout(t);
   }, [onDone]);
 
@@ -349,7 +349,7 @@ export default function Contact() {
         setTimeout(() => {
           setShowSuccessOverlay(false);
           setSubmitMessage(null);
-        }, 4500);
+        }, 15000);
       } else {
         setSubmitMessage({ 
           type: 'error', 
