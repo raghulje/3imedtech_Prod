@@ -4,6 +4,7 @@ import Footer from '../../components/feature/Footer';
 import { trackFormSubmit, trackEvent } from '../../utils/analytics';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
+import { Combobox } from '@headlessui/react';
 import { useCooldownTimer } from '../../hooks/enquiry/useCooldownTimer';
 import { useEmailValidation } from '../../hooks/enquiry/useEmailValidation';
 import { usePhoneValidation } from '../../hooks/enquiry/usePhoneValidation';
@@ -82,6 +83,77 @@ const PRODUCT_OPTIONS = [
   'Philips Achieva 3.0Tesla X-Series',
   'GE Signa HDxt 1.5Tesla',
 ] as const;
+
+const INDIA_COUNTRY_CODE = 'IN';
+const TOP_CITY_OPTIONS = [
+  'Mumbai, Maharashtra',
+  'Delhi, Delhi',
+  'Bengaluru, Karnataka',
+  'Chennai, Tamil Nadu',
+  'Hyderabad, Telangana',
+  'Kolkata, West Bengal',
+  'Pune, Maharashtra',
+  'Ahmedabad, Gujarat',
+  'Jaipur, Rajasthan',
+  'Surat, Gujarat',
+  'Lucknow, Uttar Pradesh',
+  'Kanpur, Uttar Pradesh',
+  'Nagpur, Maharashtra',
+  'Indore, Madhya Pradesh',
+  'Bhopal, Madhya Pradesh',
+  'Patna, Bihar',
+  'Ludhiana, Punjab',
+  'Agra, Uttar Pradesh',
+  'Visakhapatnam, Andhra Pradesh',
+  'Coimbatore, Tamil Nadu',
+] as const;
+
+function normalizeCityQuery(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9, ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function levenshteinDistance(a: string, b: string) {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+
+  const m = a.length;
+  const n = b.length;
+  const dp = new Array<number>(n + 1);
+
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+      dp[j] = Math.min(
+        dp[j] + 1, // deletion
+        dp[j - 1] + 1, // insertion
+        prev + cost // substitution
+      );
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+
+function isSubsequence(needle: string, haystack: string) {
+  let i = 0;
+  let j = 0;
+  while (i < needle.length && j < haystack.length) {
+    if (needle.charCodeAt(i) === haystack.charCodeAt(j)) i++;
+    j++;
+  }
+  return i === needle.length;
+}
 
 export default function Contact() {
   // CMS Data State
@@ -172,6 +244,7 @@ export default function Contact() {
     organization: '',
     email: '',
     phone: '',
+    city: '',
     product: '',
     companySize: '',
     inquiry: '',
@@ -183,6 +256,9 @@ export default function Contact() {
   const [touched, setTouched] = useState<Partial<Record<'fname' | 'email' | 'phone' | 'product' | 'message', boolean>>>({});
   const { isCoolingDown, secondsLeft, startCooldown } = useCooldownTimer(10);
   const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
+  const [cityQuery, setCityQuery] = useState('');
+  const [indiaCityOptions, setIndiaCityOptions] = useState<string[]>([]);
+  const [isCityListLoading, setIsCityListLoading] = useState(true);
 
   const emailValidation = useEmailValidation(formData.email, true);
   const phoneValidation = usePhoneValidation(formData.phone, true);
@@ -213,7 +289,7 @@ export default function Contact() {
     setFieldErrors({});
     
     // Validate required fields
-    if (!formData.fname || !formData.email || !formData.phone || !formData.organization || !formData.product || !formData.message || !formData.companySize || !formData.inquiry) {
+    if (!formData.fname || !formData.email || !formData.phone || !formData.organization || !formData.city || !formData.product || !formData.message || !formData.companySize || !formData.inquiry) {
       setSubmitMessage({ type: 'error', text: 'Please fill in all required fields.' });
       setIsSubmitting(false);
       // Track validation error (no field values sent)
@@ -275,6 +351,7 @@ export default function Contact() {
           organization: formData.organization,
           email: formData.email.trim(),
           phone: formData.phone.trim(),
+          city: formData.city,
           product: formData.product,
           companySize: formData.companySize,
           inquiry: formData.inquiry,
@@ -292,6 +369,7 @@ export default function Contact() {
           organization: '',
           email: '',
           phone: '',
+          city: '',
           product: '',
           companySize: '',
           inquiry: '',
@@ -331,6 +409,7 @@ export default function Contact() {
           organization: '',
           email: '',
           phone: '',
+          city: '',
           product: '',
           companySize: '',
           inquiry: '',
@@ -372,6 +451,88 @@ export default function Contact() {
       if (touched[key]) validateAndSet(key);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadIndiaCities = async () => {
+      try {
+        const res = await fetch('/api/geo/india-cities');
+        if (!res.ok) throw new Error(`Failed to fetch cities (${res.status})`);
+        const payload = await res.json();
+        const cities = Array.isArray(payload?.data) ? payload.data : [];
+        if (!cancelled) setIndiaCityOptions(cities);
+      } catch (error) {
+        console.warn('Failed to load India city list from geo endpoint', error);
+      } finally {
+        if (!cancelled) setIsCityListLoading(false);
+      }
+    };
+
+    loadIndiaCities();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const cityOptions = indiaCityOptions;
+
+  const filteredCityOptions = (() => {
+    const q = normalizeCityQuery(cityQuery);
+    if (!q) {
+      const top = TOP_CITY_OPTIONS.filter((c) => cityOptions.includes(c));
+      const topSet = new Set(top);
+      const rest = cityOptions.filter((c) => !topSet.has(c));
+      return [...top, ...rest].slice(0, 250);
+    }
+
+    // Smarter matching:
+    // - token prefix match on city/state
+    // - substring match on full label
+    // - subsequence match (e.g. "chenn" in "chennai")
+    // - small edit distance for typos (<=2 or <=3 for longer queries)
+    const tokens = q.split(' ').filter(Boolean);
+    const maxEdits = q.length >= 7 ? 3 : 2;
+
+    const scored: Array<{ label: string; score: number }> = [];
+
+    for (const label of cityOptions) {
+      const normLabel = normalizeCityQuery(label);
+      const [cityPart = '', statePart = ''] = normLabel.split(',').map((s) => s.trim());
+
+      let score = 0;
+
+      if (normLabel.startsWith(q)) score += 120;
+      if (cityPart.startsWith(q)) score += 160;
+      if (cityPart.includes(q)) score += 90;
+      if (normLabel.includes(q)) score += 70;
+
+      // Token-based prefix matches (helps "tamil chenn" etc.)
+      for (const t of tokens) {
+        if (!t) continue;
+        if (cityPart.startsWith(t)) score += 45;
+        else if (cityPart.includes(t)) score += 18;
+        if (statePart.startsWith(t)) score += 22;
+        else if (statePart.includes(t)) score += 10;
+      }
+
+      // Subsequence helps partial typing without exact adjacency
+      if (q.length >= 4 && isSubsequence(q.replace(/[^a-z0-9]/g, ''), cityPart.replace(/[^a-z0-9]/g, ''))) {
+        score += 40;
+      }
+
+      // Typo tolerance: compare against cityPart primarily
+      if (q.length >= 4) {
+        const dist = levenshteinDistance(q, cityPart.slice(0, Math.max(q.length + 2, 8)));
+        if (dist <= maxEdits) score += (maxEdits - dist + 1) * 14;
+      }
+
+      if (score > 0) scored.push({ label, score });
+    }
+
+    scored.sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }));
+    return scored.slice(0, 250).map((x) => x.label);
+  })();
 
   return (
     <div className="contact-page">
@@ -1017,7 +1178,64 @@ export default function Contact() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">
+                    City *
+                  </label>
+                  <Combobox
+                    value={formData.city}
+                    onChange={(value) => {
+                      setFormData((prev) => ({ ...prev, city: value || '' }));
+                      setCityQuery('');
+                    }}
+                  >
+                    <div className="relative">
+                      <Combobox.Input
+                        className="w-full px-4 py-3 pr-10 border border-gray-300 rounded focus:outline-none focus:border-[#4A90A4] bg-white"
+                        placeholder="Type to search city..."
+                        displayValue={(value: string) => value}
+                        onChange={(event) => setCityQuery(event.target.value)}
+                        onBlur={() => {
+                          // keep required field semantics: if user typed an exact match, accept it
+                          const typed = cityQuery.trim();
+                          if (typed && cityOptions.includes(typed)) {
+                            setFormData((prev) => ({ ...prev, city: typed }));
+                          }
+                          setCityQuery('');
+                        }}
+                      />
+                      {/* Native required field for HTML form validity */}
+                      <input type="hidden" name="city" value={formData.city} required />
+
+                      <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-3">
+                        <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </Combobox.Button>
+
+                      <Combobox.Options className="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg focus:outline-none">
+                        {isCityListLoading ? (
+                          <div className="px-4 py-2 text-gray-500">Loading cities...</div>
+                        ) : filteredCityOptions.length === 0 ? (
+                          <div className="px-4 py-2 text-gray-500">No cities found.</div>
+                        ) : (
+                          filteredCityOptions.map((label) => (
+                            <Combobox.Option
+                              key={label}
+                              value={label}
+                              className={({ active }) =>
+                                `cursor-pointer select-none px-4 py-2 ${active ? 'bg-[#4A90A4] text-white' : 'text-gray-900'}`
+                              }
+                            >
+                              {label}
+                            </Combobox.Option>
+                          ))
+                        )}
+                      </Combobox.Options>
+                    </div>
+                  </Combobox>
+                </div>
                 <div>
                   <label className="block text-gray-700 font-medium mb-2">
                     Company size *

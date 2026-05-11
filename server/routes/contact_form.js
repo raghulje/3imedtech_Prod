@@ -14,11 +14,12 @@ function handleContactSubmit(req, res) {
       const name = formData.fname || formData.name || '';
       const email = formData.email || '';
       const organization = formData.organization || formData.company || '';
+      const city = formData.city || '';
       const product = formData.product || '';
       const message = formData.message || '';
 
       // Validate required fields
-      if (!name || !email || !organization || !product || !message) {
+      if (!name || !email || !organization || !city || !product || !message) {
         return status.responseStatus(res, 400, 'Missing required fields');
       }
 
@@ -53,6 +54,7 @@ function handleContactSubmit(req, res) {
         email,
         Phone_Number: phoneDigits,
         company: organization,
+        city,
         Product: product,
         message,
         ...(formData.companySize != null && { companySize: formData.companySize }),

@@ -354,6 +354,9 @@ const Footer = ({ footerData: propFooterData }: FooterProps = {}) => {
           <p className="text-center text-gray-600 text-sm">
             {footerData?.copyright || 'Copyright © 2024 3i Medical Technologies'}
           </p>
+          <p className="text-center text-gray-500 text-xs mt-1">
+            City data source: Countries States Cities Database (ODbL-1.0) via @countrystatecity/countries.
+          </p>
         </div>
       </div>
     </footer>

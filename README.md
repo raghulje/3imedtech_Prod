@@ -522,6 +522,7 @@ For issues or questions:
 3. **Ports**: Ensure firewall allows traffic on configured port
 4. **Build**: Always rebuild frontend after changing API URL or port
 5. **Environment**: Use `NODE_ENV=production` in production
+6. **Data attribution**: Contact-form city data uses Countries States Cities Database via `@countrystatecity/countries` (ODbL-1.0). Keep attribution visible when redistributing.
 
 ---
 

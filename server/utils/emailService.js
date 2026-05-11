@@ -162,6 +162,7 @@ async function sendContactFormEmail(formData) {
         <h2>New Contact Form Submission</h2>
         <p><strong>Name:</strong> ${formData.fname}</p>
         <p><strong>Organization:</strong> ${formData.organization}</p>
+        <p><strong>City:</strong> ${formData.city || 'Not provided'}</p>
         <p><strong>Email:</strong> ${formData.email}</p>
         <p><strong>Phone:</strong> ${formData.phone || 'Not provided'}</p>
         <p><strong>Company Size:</strong> ${formData.companySize}</p>
@@ -176,6 +177,7 @@ New Contact Form Submission
 
 Name: ${formData.fname}
 Organization: ${formData.organization}
+City: ${formData.city || 'Not provided'}
 Email: ${formData.email}
 Phone: ${formData.phone || 'Not provided'}
 Company Size: ${formData.companySize}
@@ -224,6 +226,7 @@ async function sendContactAutoReplyEmail(formData) {
     const name = formData?.fname || formData?.name || 'there';
     const product = formData?.product || '';
     const organization = formData?.organization || formData?.company || '';
+    const city = formData?.city || '';
     const phone = formData?.phone || '';
     const inquiry = formData?.inquiry || formData?.enquiry || formData?.enquiringFor || '';
     const message = formData?.message || '';
@@ -237,9 +240,10 @@ async function sendContactAutoReplyEmail(formData) {
         <p style="margin: 0 0 12px 0; line-height: 1.6;">
           We’ve received your enquiry and our team will get back to you shortly.
         </p>
-        ${(organization || product || phone || inquiry || message) ? `
+        ${(organization || city || product || phone || inquiry || message) ? `
           <div style="margin-top: 12px; padding: 14px 16px; background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 10px;">
             ${organization ? `<p style="margin: 0 0 6px 0; line-height: 1.6;"><strong>Organization:</strong> ${escapeHtml(organization)}</p>` : ''}
+            ${city ? `<p style="margin: 0 0 6px 0; line-height: 1.6;"><strong>City:</strong> ${escapeHtml(city)}</p>` : ''}
             ${phone ? `<p style="margin: 0 0 6px 0; line-height: 1.6;"><strong>Contact:</strong> ${escapeHtml(phone)}</p>` : ''}
             ${inquiry ? `<p style="margin: 0 0 6px 0; line-height: 1.6;"><strong>Enquiry type:</strong> ${escapeHtml(inquiry)}</p>` : ''}
             ${product ? `<p style="margin: 0; line-height: 1.6;"><strong>Product:</strong> ${escapeHtml(product)}</p>` : ''}
@@ -255,7 +259,7 @@ async function sendContactAutoReplyEmail(formData) {
       </div>
     `;
 
-    const text = `Hi ${name},\n\nWe’ve received your enquiry and our team will get back to you shortly.\n\nYour enquiry details:\n${organization ? `- Organization: ${organization}\n` : ''}${phone ? `- Contact: ${phone}\n` : ''}${inquiry ? `- Enquiry type: ${inquiry}\n` : ''}${product ? `- Product: ${product}\n` : ''}${message ? `- Message: ${message}\n` : ''}\nRegards,\n3iMedtech Team`;
+    const text = `Hi ${name},\n\nWe’ve received your enquiry and our team will get back to you shortly.\n\nYour enquiry details:\n${organization ? `- Organization: ${organization}\n` : ''}${city ? `- City: ${city}\n` : ''}${phone ? `- Contact: ${phone}\n` : ''}${inquiry ? `- Enquiry type: ${inquiry}\n` : ''}${product ? `- Product: ${product}\n` : ''}${message ? `- Message: ${message}\n` : ''}\nRegards,\n3iMedtech Team`;
 
     const mailOptions = {
       from: `"${fromName}" <${config.smtpUser}>`,
