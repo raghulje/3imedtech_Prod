@@ -1192,7 +1192,7 @@ export default function Contact() {
                   >
                     <div className="relative">
                       <Combobox.Input
-                        className="w-full px-4 py-3 pr-10 border border-gray-300 rounded focus:outline-none focus:border-[#4A90A4] bg-white"
+                        className="w-full px-4 py-3 pr-16 border border-gray-300 rounded focus:outline-none focus:border-[#4A90A4] bg-white"
                         placeholder="Type to search city..."
                         displayValue={(value: string) => value}
                         onChange={(event) => setCityQuery(event.target.value)}
@@ -1213,6 +1213,19 @@ export default function Contact() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </Combobox.Button>
+                      {(formData.city || cityQuery) && (
+                        <button
+                          type="button"
+                          aria-label="Clear city"
+                          onClick={() => {
+                            setFormData((prev) => ({ ...prev, city: '' }));
+                            setCityQuery('');
+                          }}
+                          className="absolute inset-y-0 right-10 flex items-center pr-1 text-gray-400 hover:text-gray-600"
+                        >
+                          <span className="text-2xl font-semibold leading-none">×</span>
+                        </button>
+                      )}
 
                       <Combobox.Options className="absolute z-20 mt-2 max-h-64 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg focus:outline-none">
                         {isCityListLoading ? (
