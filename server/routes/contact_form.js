@@ -6,6 +6,20 @@ const { getRequestMeta, phoneToDigitsOnly } = require('../helpers/requestMeta');
 const { sendToKissflowWebhook } = require('../helpers/kissflowWebhook');
 
 const WEBSITE_NAME = '3iMedtech';
+const AGENT_ID = '6a048520285bce8bb13c28cc';
+
+function splitCityAndState(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return { cityname: '', statename: '' };
+  }
+
+  const [cityname = '', ...rest] = raw.split(',');
+  return {
+    cityname: cityname.trim(),
+    statename: rest.join(',').trim(),
+  };
+}
 
 function handleContactSubmit(req, res) {
   (async () => {
@@ -48,13 +62,17 @@ function handleContactSubmit(req, res) {
 
       const meta = getRequestMeta(req);
       const phoneDigits = phoneToDigitsOnly(formData.phone);
+      const { cityname, statename } = splitCityAndState(city);
 
       const webhookData = {
         name,
         email,
         Phone_Number: phoneDigits,
+        agentid: AGENT_ID,
         company: organization,
         city,
+        ...(cityname && { cityname }),
+        ...(statename && { statename }),
         Product: product,
         message,
         ...(formData.companySize != null && { companySize: formData.companySize }),
