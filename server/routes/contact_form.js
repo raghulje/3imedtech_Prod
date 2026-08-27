@@ -4,9 +4,15 @@ const { sendContactFormEmail, sendContactAutoReplyEmail } = require('../utils/em
 const status = require('../helpers/response');
 const { getRequestMeta, phoneToDigitsOnly } = require('../helpers/requestMeta');
 const { sendToKissflowWebhook } = require('../helpers/kissflowWebhook');
+const {
+  evaluateContactSpam,
+  recordAcceptedSubmission,
+  logIgnoredSpam,
+} = require('../helpers/spamProtection');
 
 const WEBSITE_NAME = '3iMedtech';
 const AGENT_ID = '6a048520285bce8bb13c28cc';
+const SUCCESS_MESSAGE = 'Contact form submitted successfully';
 
 function splitCityAndState(value) {
   const raw = String(value || '').trim();
@@ -37,7 +43,17 @@ function handleContactSubmit(req, res) {
         return status.responseStatus(res, 400, 'Missing required fields');
       }
 
-      // Send email (if implemented)
+      // Server-side spam / abuse checks (silent success when blocked)
+      const spam = evaluateContactSpam(formData, {
+        email,
+        phone: formData.phone,
+      });
+      if (spam.blocked) {
+        logIgnoredSpam(spam.reason, { path: req.originalUrl || req.path });
+        return status.responseStatus(res, 200, SUCCESS_MESSAGE);
+      }
+
+      // Valid submission only: email + Kissflow
       try {
         await sendContactFormEmail(formData);
       } catch (emailErr) {
@@ -81,8 +97,9 @@ function handleContactSubmit(req, res) {
       };
 
       sendToKissflowWebhook(WEBSITE_NAME, 'Contact form', webhookData);
+      recordAcceptedSubmission(email);
 
-      return status.responseStatus(res, 200, 'Contact form submitted successfully');
+      return status.responseStatus(res, 200, SUCCESS_MESSAGE);
     } catch (error) {
       console.error('Error submitting contact form:', error);
       return status.responseStatus(res, 500, 'Failed to submit contact form', { error: error.message });
@@ -91,10 +108,10 @@ function handleContactSubmit(req, res) {
 }
 
 // Contact form submission (public endpoint)
+// Mounted at both /api/contact and /api/contact-form
 router.post('/submit', handleContactSubmit);
 
 // Kissflow-style endpoint (same handler)
 router.post('/', handleContactSubmit);
 
 module.exports = router;
-

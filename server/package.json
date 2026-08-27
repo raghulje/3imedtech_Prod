@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node scripts/test_spam_protection.js && node scripts/test_contact_form_http.js",
+    "test:spam": "node scripts/test_spam_protection.js",
+    "test:contact-spam": "node scripts/test_contact_form_http.js",
     "seed:hero": "node scripts/seed_hero_slides.js",
     "seed:cap-hero": "node scripts/seed_capabilities_hero.js",
     "seed:cap-research": "node scripts/seed_capabilities_research.js",
